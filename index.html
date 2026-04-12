@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Snake</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%230b0f14'/><rect x='10' y='28' width='10' height='10' rx='2' fill='%234fd190'/><rect x='22' y='28' width='10' height='10' rx='2' fill='%234fd190'/><rect x='34' y='28' width='10' height='10' rx='2' fill='%237CFFB2'/><circle cx='50' cy='18' r='5' fill='%23ff5577'/></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%230b0f14'/><rect x='10' y='28' width='10' height='10' rx='2' fill='%234fd190'/><rect x='22' y='28' width='10' height='10' rx='2' fill='%234fd190'/><rect x='34' y='28' width='10' height='10' rx='2' fill='%237CFFB2'/><circle cx='50' cy='18' r='5' fill='%23ff5577'/></svg>">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;user-select:none}
+  html,body{height:100%;background:#0b0f14;color:#e6f1ff;font-family:-apple-system,system-ui,sans-serif;overflow:hidden}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:12px;touch-action:none}
+  .hud{display:flex;justify-content:space-between;width:100%;max-width:480px;font-size:18px;font-weight:600}
+  .hud span b{color:#7CFFB2}
+  canvas{background:#111821;border:2px solid #1f2a36;border-radius:12px;touch-action:none;max-width:100%;height:auto}
+  .pad{display:grid;grid-template-columns:repeat(3,64px);grid-template-rows:repeat(3,64px);gap:8px;margin-top:8px}
+  .pad button{background:#1b2632;color:#e6f1ff;border:1px solid #2a3a4d;border-radius:12px;font-size:24px;font-weight:700;cursor:pointer}
+  .pad button:active{background:#2a3a4d}
+  .u{grid-column:2;grid-row:1}.l{grid-column:1;grid-row:2}.r{grid-column:3;grid-row:2}.d{grid-column:2;grid-row:3}
+  .c{grid-column:2;grid-row:2;background:#7CFFB2;color:#0b0f14}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;font-size:22px;text-align:center;padding:20px}
+  .overlay.show{display:flex}
+  .overlay button{padding:12px 24px;font-size:18px;background:#7CFFB2;color:#0b0f14;border:none;border-radius:10px;font-weight:700}
+</style>
+</head>
+<body>
+  <div class="hud"><span>Score: <b id="score">0</b></span><span>Best: <b id="best">0</b></span></div>
+  <canvas id="game" width="480" height="480"></canvas>
+  <div style="margin-top:6px"><button id="mode" style="padding:8px 14px;background:#1b2632;color:#e6f1ff;border:1px solid #2a3a4d;border-radius:8px;font-weight:600">Mode: Classic</button></div>
+  <div class="pad">
+    <button class="u" data-d="U">▲</button>
+    <button class="l" data-d="L">◀</button>
+    <button class="c" id="pause">II</button>
+    <button class="r" data-d="R">▶</button>
+    <button class="d" data-d="D">▼</button>
+  </div>
+  <div class="overlay" id="start"><div>🐍 Snake</div><button id="startBtn">Start</button></div>
+  <div class="overlay" id="cd" style="font-size:80px;font-weight:800"></div>
+  <div class="overlay" id="over">
+    <div id="msg">Game Over</div>
+    <button id="restart">Play Again</button>
+  </div>
+<script>
+const cvs=document.getElementById('game'),ctx=cvs.getContext('2d');
+const N=24,S=cvs.width/N;
+let snake,dir,nextDir,food,score,best,timer,speed,paused,obstacles,obMode;
+obMode=false;
+best=Number(localStorage?.getItem?.('snakeBest')||0);
+document.getElementById('best').textContent=best;
+function reset(){snake=[{x:12,y:12},{x:11,y:12},{x:10,y:12}];dir={x:1,y:0};nextDir=dir;score=0;speed=120;paused=true;obstacles=[];if(obMode){for(let i=0;i<18;i++){let o;do{o={x:(Math.random()*N)|0,y:(Math.random()*N)|0}}while(snake.some(s=>s.x===o.x&&s.y===o.y)||(o.x>8&&o.x<16&&o.y>10&&o.y<14));obstacles.push(o)}}placeFood();document.getElementById('score').textContent=0;document.getElementById('over').classList.remove('show');draw();countdown();}
+function countdown(){const el=document.getElementById('cd');let n=2;el.textContent=n;el.classList.add('show');const t=setInterval(()=>{n--;if(n>0){el.textContent=n}else if(n===0){el.textContent='GO!'}else{clearInterval(t);el.classList.remove('show');paused=false;loop()}},700)}
+function placeFood(){while(true){const f={x:(Math.random()*N)|0,y:(Math.random()*N)|0};if(!snake.some(s=>s.x===f.x&&s.y===f.y)&&!obstacles.some(o=>o.x===f.x&&o.y===f.y)){food=f;return}}}
+function step(){
+  dir=nextDir;
+  const h={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  if(h.x<0||h.y<0||h.x>=N||h.y>=N||snake.some(s=>s.x===h.x&&s.y===h.y)||obstacles.some(o=>o.x===h.x&&o.y===h.y)){return gameOver()}
+  snake.unshift(h);
+  if(h.x===food.x&&h.y===food.y){score++;document.getElementById('score').textContent=score;if(score>best){best=score;document.getElementById('best').textContent=best;try{localStorage.setItem('snakeBest',best)}catch(e){}}if(speed>60)speed-=2;placeFood()}
+  else snake.pop();
+  draw();
+}
+function draw(){
+  ctx.fillStyle='#111821';ctx.fillRect(0,0,cvs.width,cvs.height);
+  ctx.fillStyle='#3a4a5f';obstacles.forEach(o=>ctx.fillRect(o.x*S+1,o.y*S+1,S-2,S-2));
+  ctx.fillStyle='#ff5577';ctx.beginPath();ctx.arc(food.x*S+S/2,food.y*S+S/2,S/2-2,0,7);ctx.fill();
+  snake.forEach((s,i)=>{ctx.fillStyle=i===0?'#7CFFB2':'#4fd190';ctx.fillRect(s.x*S+1,s.y*S+1,S-2,S-2)});
+}
+function loop(){clearTimeout(timer);if(paused)return;timer=setTimeout(()=>{step();loop()},speed)}
+function gameOver(){clearTimeout(timer);document.getElementById('over').classList.add('show')}
+function setDir(d){const m={U:{x:0,y:-1},D:{x:0,y:1},L:{x:-1,y:0},R:{x:1,y:0}}[d];if(!m)return;if(m.x===-dir.x&&m.y===-dir.y)return;nextDir=m}
+document.querySelectorAll('[data-d]').forEach(b=>b.addEventListener('click',()=>setDir(b.dataset.d)));
+document.getElementById('pause').addEventListener('click',()=>{paused=!paused;if(!paused)loop()});
+document.getElementById('restart').addEventListener('click',reset);
+document.getElementById('mode').addEventListener('click',()=>{obMode=!obMode;document.getElementById('mode').textContent='Mode: '+(obMode?'Obstacles':'Classic');reset()});
+addEventListener('keydown',e=>{const k={ArrowUp:'U',ArrowDown:'D',ArrowLeft:'L',ArrowRight:'R'}[e.key];if(k)setDir(k)});
+let tx,ty;
+cvs.addEventListener('touchstart',e=>{const t=e.touches[0];tx=t.clientX;ty=t.clientY},{passive:true});
+cvs.addEventListener('touchend',e=>{const t=e.changedTouches[0],dx=t.clientX-tx,dy=t.clientY-ty;if(Math.abs(dx)<20&&Math.abs(dy)<20)return;if(Math.abs(dx)>Math.abs(dy))setDir(dx>0?'R':'L');else setDir(dy>0?'D':'U')},{passive:true});
+document.getElementById('startBtn').addEventListener('click',()=>{document.getElementById('start').classList.remove('show');reset()});
+document.getElementById('start').classList.add('show');
+</script>
+</body>
+</html>
